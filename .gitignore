@@ -1,0 +1,24 @@
+# Python
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/.env
+
+# Videos (local storage - too large for git)
+videos/
+
+# Node
+frontend/node_modules/
+frontend/.next/
+frontend/tsconfig.tsbuildinfo
+frontend/.env.local
+frontend/.env
+
+# OS
+.DS_Store
+*.DS_Store
+
+# Misc
+_mockups/
+*.log
