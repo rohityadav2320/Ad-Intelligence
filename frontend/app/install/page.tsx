@@ -3,7 +3,12 @@
 const MAC_DOWNLOAD_URL = "https://github.com/rohityadav2320/Ad-Intelligence/releases/latest/download/AdIntelligenceAgent-Mac.zip";
 const WIN_DOWNLOAD_URL = "https://github.com/rohityadav2320/Ad-Intelligence/releases/latest/download/AdIntelligenceAgent-Windows.zip";
 
-const MAC_RUN_CMD = `F=$(find ~/Downloads -maxdepth 2 -name 'AdIntelligenceAgent-Mac' -type d -print0 2>/dev/null | xargs -0 ls -dt 2>/dev/null | head -1); echo "Found: $F"; xattr -cr "$F"; chmod +x "$F/run.command"; open "$F/run.command"`;
+// Robust to repeated downloads: browsers rename duplicates to
+// "AdIntelligenceAgent-Mac (1).zip", "(2)", etc. This finds the newest
+// already-extracted folder first (any name variant); if none exists yet,
+// it finds the newest matching zip (any name variant) and extracts it
+// itself — always producing a clean "AdIntelligenceAgent-Mac" folder.
+const MAC_RUN_CMD = `F=$(find ~/Downloads -maxdepth 1 -iname 'AdIntelligenceAgent-Mac*' -type d -print0 2>/dev/null | xargs -0 ls -dt 2>/dev/null | head -1); if [ -z "$F" ]; then Z=$(find ~/Downloads -maxdepth 1 -iname 'AdIntelligenceAgent-Mac*.zip' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1); if [ -n "$Z" ]; then unzip -oq "$Z" -d ~/Downloads; F=~/Downloads/AdIntelligenceAgent-Mac; fi; fi; echo "Found: $F"; xattr -cr "$F"; chmod +x "$F/run.command"; open "$F/run.command"`;
 
 import { useState } from "react";
 import { Copy, Check, ChevronDown } from "lucide-react";
@@ -131,7 +136,7 @@ export default function InstallPage() {
                   <p className="font-semibold mb-1">Paste it into Terminal and press Enter</p>
                   <p className="text-white/50 text-sm leading-relaxed">
                     Click inside the Terminal window, press <kbd className="bg-white/10 px-1.5 py-0.5 rounded text-xs">Cmd</kbd> + <kbd className="bg-white/10 px-1.5 py-0.5 rounded text-xs">V</kbd> to paste,
-                    then press <kbd className="bg-white/10 px-1.5 py-0.5 rounded text-xs">Enter</kbd>. This automatically finds your downloaded file, unlocks it, and starts it — no matter what it's named.
+                    then press <kbd className="bg-white/10 px-1.5 py-0.5 rounded text-xs">Enter</kbd>. This automatically finds your downloaded file, unlocks it, and starts it — even if you downloaded it more than once and it got renamed to "(1)" or "(2)".
                   </p>
                 </div>
               </div>
