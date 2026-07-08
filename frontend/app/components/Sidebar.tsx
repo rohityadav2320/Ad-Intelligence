@@ -2,6 +2,22 @@
 
 import { usePathname } from "next/navigation";
 
+/* ── Logo mark (A + blue crossbar + apex spark) ─────────────── */
+function LogoMark() {
+  return (
+    <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+      <rect width="36" height="36" rx="9" fill="#0B0F19" />
+      <rect x="1" y="1" width="34" height="34" rx="8.5" stroke="#1e3a8a" strokeWidth="1.5" />
+      {/* A shape */}
+      <path d="M10 27L18 9L26 27" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      {/* Blue crossbar = intelligence */}
+      <path d="M13.5 21.5h9" stroke="#3B82F6" strokeWidth="2.5" strokeLinecap="round" />
+      {/* Apex spark dot */}
+      <circle cx="18" cy="9" r="2.2" fill="#2563EB" />
+    </svg>
+  );
+}
+
 const NAV = [
   {
     href: "/",
@@ -48,6 +64,15 @@ const NAV = [
       <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></>
     ),
   },
+  {
+    href: "/deck",
+    label: "Overview Deck",
+    desc: "4-slide product presentation",
+    match: (p: string) => p.startsWith("/deck"),
+    icon: (
+      <><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></>
+    ),
+  },
 ];
 
 export default function Sidebar() {
@@ -59,7 +84,7 @@ export default function Sidebar() {
     <aside className="w-64 shrink-0 bg-slate-900 text-slate-300 flex flex-col fixed h-screen z-20">
       {/* Brand */}
       <a href="/" className="px-5 py-5 border-b border-slate-800 flex items-center gap-2.5">
-        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg">A</div>
+        <LogoMark />
         <div>
           <div className="font-bold text-white leading-tight">Ad Intelligence</div>
           <div className="text-xs text-slate-500">by Vidrow</div>
