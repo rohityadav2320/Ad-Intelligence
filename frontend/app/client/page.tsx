@@ -567,7 +567,17 @@ function ClientContent() {
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6" onClick={() => setPlayer(null)}>
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setPlayer(null)} className="absolute -top-10 right-0 text-white text-sm">✕ Close</button>
-            <video src={playerAd.video_url.startsWith('http') ? playerAd.video_url : `${API}${playerAd.video_url}`} className="max-h-[80vh] max-w-[90vw] rounded-lg" controls autoPlay />
+            <video
+              src={playerAd.video_url.startsWith('http') ? playerAd.video_url : `${API}${playerAd.video_url}`}
+              className="max-h-[80vh] max-w-[90vw] rounded-lg"
+              controls
+              autoPlay
+              onError={(e) => {
+                const v = e.currentTarget;
+                const proxy = `${API}/api/download?path=${encodeURIComponent(playerAd.video_url)}`;
+                if (v.src !== proxy) { v.src = proxy; v.load(); v.play().catch(() => {}); }
+              }}
+            />
           </div>
         </div>
       )}

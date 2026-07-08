@@ -160,7 +160,17 @@ export default function LibraryPage() {
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6" onClick={() => setPlayer(null)}>
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setPlayer(null)} className="absolute -top-10 right-0 text-white text-sm hover:text-gray-300">✕ Close</button>
-            <video src={player.video_url.startsWith('http') ? player.video_url : `${API}${player.video_url}`} className="max-h-[80vh] max-w-[90vw] rounded-lg" controls autoPlay />
+            <video
+              src={player.video_url.startsWith('http') ? player.video_url : `${API}${player.video_url}`}
+              className="max-h-[80vh] max-w-[90vw] rounded-lg"
+              controls
+              autoPlay
+              onError={(e) => {
+                const v = e.currentTarget;
+                const proxy = `${API}/api/download?path=${encodeURIComponent(player.video_url)}`;
+                if (v.src !== proxy) { v.src = proxy; v.load(); v.play().catch(() => {}); }
+              }}
+            />
           </div>
         </div>
       )}

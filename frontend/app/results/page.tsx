@@ -69,6 +69,11 @@ function AdCard({ ad }: { ad: Ad }) {
               className="max-h-[80vh] max-w-[90vw] rounded-lg"
               controls
               autoPlay
+              onError={(e) => {
+                const v = e.currentTarget;
+                const proxy = `${API}/api/download?path=${encodeURIComponent(ad.video_url)}`;
+                if (v.src !== proxy) { v.src = proxy; v.load(); v.play().catch(() => {}); }
+              }}
             />
           </div>
         </div>
