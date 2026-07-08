@@ -496,7 +496,11 @@ function ClientContent() {
       });
       const d = await res.json();
       if (!res.ok) { setReelError(d.detail || "Failed to download"); }
-      else { setReels(prev => [d, ...prev.filter(r => r.id !== d.id)]); setReelInput(""); }
+      else if (d.status === "queued") {
+        // Reel is queued for the local agent — show a brief notice but don't push to list yet
+        setReelError("Reel queued — agent will process it shortly. Refresh in ~30s.");
+        setReelInput("");
+      } else { setReels(prev => [d, ...prev.filter(r => r.id !== d.id)]); setReelInput(""); }
     } catch { setReelError("Could not connect to backend"); }
     setReelLoading(false);
   };

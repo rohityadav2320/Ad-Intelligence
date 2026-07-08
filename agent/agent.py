@@ -79,7 +79,7 @@ async def process_meta_job(job: dict):
     2. Save ads to Supabase with their CDN video URLs
     3. Call backend to transcribe + analyze each ad
     """
-    from scraper import scrape_ads_for_brand
+    from scraper import scrape_ads_for_brand, scrape_single_ad
 
     params = job["params"]
     brand_name = params.get("brand_name", "").strip()
@@ -88,11 +88,20 @@ async def process_meta_job(job: dict):
     role = params.get("role", "competitor")
     session_id = params.get("session_id")
 
+    # Detect single-ad URL (e.g. https://facebook.com/ads/library/?id=1234567890)
+    # or a bare numeric ad ID
+    is_single_ad = "?id=" in brand_name or brand_name.isdigit()
+
     print(f"\n🔍 Scraping Meta Ad Library: '{brand_name}' (max {max_ads} ads)")
 
     try:
         # ── Stage 1: Scrape ──────────────────────────────────────────────────
-        ads_raw = await scrape_ads_for_brand(brand_name, max_ads=max_ads)
+        if is_single_ad:
+            print(f"🔗 Single-ad URL detected — using targeted scrape")
+            single = await scrape_single_ad(brand_name)
+            ads_raw = [single] if single else []
+        else:
+            ads_raw = await scrape_ads_for_brand(brand_name, max_ads=max_ads)
 
         if not ads_raw:
             err = "No video ads found. Try a different brand name or URL."
