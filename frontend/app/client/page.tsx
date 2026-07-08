@@ -1648,7 +1648,7 @@ function ClientContent() {
           <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6" onClick={() => setReelPlayer(null)}>
             <div className="relative" onClick={e => e.stopPropagation()}>
               <button onClick={() => setReelPlayer(null)} className="absolute -top-10 right-0 text-white text-sm">✕ Close</button>
-              <video src={`${API}${reelPlayer}`} className="max-h-[80vh] max-w-[90vw] rounded-lg" controls autoPlay />
+              <video src={reelPlayer.startsWith('http') ? reelPlayer : `${API}${reelPlayer}`} className="max-h-[80vh] max-w-[90vw] rounded-lg" controls autoPlay />
             </div>
           </div>
         )}

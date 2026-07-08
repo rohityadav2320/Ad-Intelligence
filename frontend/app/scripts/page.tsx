@@ -128,7 +128,7 @@ function ScriptsPageInner() {
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6" onClick={() => setPlayer(null)}>
           <div className="relative" onClick={e => e.stopPropagation()}>
             <button onClick={() => setPlayer(null)} className="absolute -top-10 right-0 text-white text-sm">✕ Close</button>
-            <video src={`${API}${player}`} className="max-h-[80vh] max-w-[90vw] rounded-lg" controls autoPlay />
+            <video src={player.startsWith('http') ? player : `${API}${player}`} className="max-h-[80vh] max-w-[90vw] rounded-lg" controls autoPlay />
           </div>
         </div>
       )}
@@ -202,7 +202,7 @@ function ScriptsPageInner() {
                             onClick={() => setPlayer(videoUrl)}
                           >
                             <video
-                              src={`${API}${videoUrl}`}
+                              src={videoUrl && videoUrl.startsWith('http') ? videoUrl : `${API}${videoUrl}`}
                               className="w-full h-full object-cover"
                               muted
                               onMouseEnter={e => (e.currentTarget as HTMLVideoElement).play()}
