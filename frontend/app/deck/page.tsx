@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Search, Mic, ImageIcon, PenLine, Brain, BarChart2,
-  Instagram, Users, Wand2, Database, Clock,
+  Clapperboard, Users, Wand2, Database, Clock,
   ChevronLeft, ChevronRight, Link, Check, Megaphone,
 } from "lucide-react";
 
@@ -35,7 +35,7 @@ const FEATURES = [
   { Icon: Mic,       title: "Auto-transcription",         desc: "Every ad's audio and dialogue, transcribed instantly." },
   { Icon: Brain,     title: "AI breakdown",               desc: "Hook, tone, CTA, pain points, audience, and a quality score." },
   { Icon: BarChart2, title: "Performance tiers",          desc: "Proven / Testing / New — the longest-running ads are working." },
-  { Icon: Instagram, title: "Reel inspiration",           desc: "Paste any Instagram reel link, get an instant transcript." },
+  { Icon: Clapperboard, title: "Reel inspiration",         desc: "Paste any Instagram reel link, get an instant transcript." },
   { Icon: Users,     title: "Client workspaces",          desc: "Organize competitors and inspiration separately per client." },
   { Icon: Wand2,     title: "One-click scripts",          desc: 'Fresh, adapted from competitor ads, or "Double Down" variations.' },
   { Icon: Database,  title: "Central library",            desc: "Every ad and script — searchable and reusable by the whole team." },
