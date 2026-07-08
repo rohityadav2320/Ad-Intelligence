@@ -747,23 +747,41 @@ async def instagram_transcribe(
 
     # Save to temp file and transcribe
     tmp_path = f"/tmp/reel_{client_id[:8]}_{file.filename}"
+    video_url = reel_url  # fallback to Instagram URL
     try:
         content = await file.read()
         with open(tmp_path, "wb") as f:
             f.write(content)
 
         transcript_data = transcribe_video(tmp_path)
+
+        # Upload video to Supabase Storage so it can be played in the browser
+        try:
+            storage_path = f"{client_id[:8]}/{file.filename}"
+            # Create bucket if it doesn't exist
+            try:
+                supabase.storage.create_bucket("reels", options={"public": True})
+            except Exception:
+                pass  # bucket already exists
+            supabase.storage.from_("reels").upload(
+                storage_path, content, {"content-type": "video/mp4", "upsert": "true"}
+            )
+            video_url = supabase.storage.from_("reels").get_public_url(storage_path)
+            print(f"📦 Uploaded reel to Supabase Storage: {video_url[:60]}...")
+        except Exception as e:
+            print(f"⚠️  Storage upload failed, using Instagram URL: {e}")
+
     finally:
         try:
             os.remove(tmp_path)
         except Exception:
             pass
 
-    # Save to DB — use original Instagram URL for video_url (browser can embed it)
+    # Save to DB with Supabase Storage URL (playable in browser)
     row = supabase.table("inspiration_reels").insert({
         "client_id": client_id,
         "reel_url": reel_url,
-        "video_url": reel_url,
+        "video_url": video_url,
         "transcript": transcript_data.get("full_text", ""),
         "hook_text": transcript_data.get("hook_text", ""),
     }).execute().data[0]
