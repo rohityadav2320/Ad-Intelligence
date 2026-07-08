@@ -16,6 +16,20 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Ad Intelligence — by Vidrow",
   description: "Scrape, transcribe, and analyze competitor ads from the Meta Ad Library.",
+  manifest: "/manifest.json",
+  themeColor: "#2563EB",
+  appleWebApp: {
+    capable: true,
+    title: "Ad Intelligence",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/icon-192.png",
+  },
 };
 
 export default function RootLayout({
