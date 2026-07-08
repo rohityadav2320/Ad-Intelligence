@@ -632,8 +632,8 @@ function ClientContent() {
                   <FileText className="w-4 h-4" /> Transcript
                 </button>
                 {detailAd.video_url && (
-                  <a href={detailAd.video_url.startsWith('http') ? detailAd.video_url : `${API}/api/download?path=${encodeURIComponent(detailAd.video_url)}`}
-                    target="_blank" rel="noopener noreferrer" download
+                  <a href={`${API}/api/download?path=${encodeURIComponent(detailAd.video_url)}`}
+                    target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors ml-auto">
                     <Download className="w-4 h-4" /> Download
                   </a>
@@ -1590,7 +1590,7 @@ function ClientContent() {
                               )}
                               <button onClick={() => { setOpenSummary(openSummary === ad.id ? null : ad.id); setOpenTranscript(null); }} className="text-gray-400 hover:text-purple-600" title="AI Summary"><Sparkles className="w-4 h-4" /></button>
                               <button onClick={() => { setOpenTranscript(openTranscript === ad.id ? null : ad.id); setOpenSummary(null); }} className="text-gray-400 hover:text-blue-600" title="Transcript"><FileText className="w-4 h-4" /></button>
-                              {ad.video_url && <a href={ad.video_url.startsWith('http') ? ad.video_url : `${API}/api/download?path=${encodeURIComponent(ad.video_url)}`} target="_blank" rel="noopener noreferrer" download className="text-gray-400 hover:text-blue-600" title="Download"><Download className="w-4 h-4" /></a>}
+                              {ad.video_url && <a href={`${API}/api/download?path=${encodeURIComponent(ad.video_url)}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-blue-600" title="Download"><Download className="w-4 h-4" /></a>}
                               <button
                                 onClick={async () => {
                                   if (!confirm("Remove this ad from this client workspace?")) return;

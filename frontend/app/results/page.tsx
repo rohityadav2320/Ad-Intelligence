@@ -167,8 +167,8 @@ function AdCard({ ad }: { ad: Ad }) {
         </button>
         {ad.video_url && (
           <a
-            href={ad.video_url.startsWith('http') ? ad.video_url : `${API}/api/download?path=${encodeURIComponent(ad.video_url)}`}
-            target="_blank" rel="noopener noreferrer" download
+            href={`${API}/api/download?path=${encodeURIComponent(ad.video_url)}`}
+            target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 font-medium transition-colors ml-auto"
           >
             <Download className="w-3.5 h-3.5" />

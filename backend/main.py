@@ -970,3 +970,38 @@ def export_csv(brand: str = None):
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=ad-intelligence-export.csv"}
     )
+
+
+@app.get("/api/download")
+def download_video(path: str):
+    """
+    Proxy download for Meta CDN video URLs.
+    Fetches the video and returns it as an attachment so the browser downloads it
+    instead of opening it in a new tab.
+    """
+    import requests as req
+    from fastapi.responses import StreamingResponse
+    import urllib.parse
+
+    if not path.startswith("http"):
+        raise HTTPException(status_code=400, detail="Invalid URL")
+
+    try:
+        r = req.get(path, stream=True, timeout=60, headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        })
+        r.raise_for_status()
+
+        filename = urllib.parse.urlparse(path).path.split("/")[-1] or "video.mp4"
+        if "?" in filename:
+            filename = filename.split("?")[0]
+        if not filename.endswith(".mp4"):
+            filename = "ad-video.mp4"
+
+        return StreamingResponse(
+            r.iter_content(chunk_size=8192),
+            media_type="video/mp4",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Download failed: {e}")
