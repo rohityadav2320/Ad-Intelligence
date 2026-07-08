@@ -145,9 +145,40 @@ async def process_meta_job(job: dict):
         }
         saved_ad_ids = []
 
+        # Ensure Supabase Storage bucket exists for ad videos
+        try:
+            supabase.storage.create_bucket("ad-videos", options={"public": True})
+        except Exception:
+            pass  # bucket already exists
+
         for ad_raw in ads_raw:
             ad_data = {k: v for k, v in ad_raw.items() if k in valid_cols and v is not None}
             meta_id = ad_data.get("meta_library_id", "")
+
+            # ── Upload video to Supabase Storage for permanent URL ────────────
+            cdn_url = ad_data.get("video_url", "")
+            if cdn_url and cdn_url.startswith("http"):
+                storage_path = f"{brand_name}/{meta_id}.mp4"
+                try:
+                    # Check if already uploaded
+                    existing_file = supabase.storage.from_("ad-videos").get_public_url(storage_path)
+                    # Try downloading from CDN and uploading to storage
+                    print(f"📥 Downloading video for {meta_id[:12]}...")
+                    vid_resp = requests.get(cdn_url, timeout=60, headers={
+                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+                    })
+                    if vid_resp.status_code == 200:
+                        supabase.storage.from_("ad-videos").upload(
+                            storage_path, vid_resp.content,
+                            {"content-type": "video/mp4", "upsert": "true"}
+                        )
+                        permanent_url = supabase.storage.from_("ad-videos").get_public_url(storage_path)
+                        ad_data["video_url"] = permanent_url
+                        print(f"📦 Stored video permanently for {meta_id[:12]}")
+                    else:
+                        print(f"⚠️  Could not download video for {meta_id[:12]} (status {vid_resp.status_code})")
+                except Exception as e:
+                    print(f"⚠️  Storage upload failed for {meta_id[:12]}: {e}")
 
             existing_ad = supabase.table("ads").select("id").eq(
                 "meta_library_id", meta_id).execute()
@@ -157,6 +188,7 @@ async def process_meta_job(job: dict):
                 supabase.table("ads").update({
                     "days_running": ad_data.get("days_running"),
                     "performance_tier": ad_data.get("performance_tier"),
+                    "video_url": ad_data.get("video_url"),
                     "last_scraped_at": "now()"
                 }).eq("id", ad_id).execute()
             else:
