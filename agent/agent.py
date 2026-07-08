@@ -24,9 +24,10 @@ from supabase import create_client, Client
 
 load_dotenv()
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
-BACKEND_URL = os.getenv("BACKEND_URL", "").rstrip("/")
+# Defaults are pre-filled — team members don't need to configure anything
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://qyjquitdgwigqaljudfg.supabase.co")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5anF1aXRkZ3dpZ3FhbGp1ZGZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5OTMwMDgsImV4cCI6MjA5ODU2OTAwOH0.56mUIDztE-XSgOEwHSi5Ez04_nDDSMkkHP4vgPVdEUY")
+BACKEND_URL = os.getenv("BACKEND_URL", "https://ad-intelligence-bavo.onrender.com").rstrip("/")
 POLL_INTERVAL = 5  # seconds between job polls
 
 if not SUPABASE_URL or not SUPABASE_KEY:
