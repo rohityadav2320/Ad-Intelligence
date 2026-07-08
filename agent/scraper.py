@@ -435,7 +435,12 @@ async def scrape_ads_for_brand(brand_name: str, max_ads: int = 15) -> list[dict]
         stagnant = 0
         last_count = 0
         for _ in range(max_scrolls):
-            await page.evaluate("window.scrollBy(0, window.innerHeight * 2)")
+            try:
+                await page.evaluate("window.scrollBy(0, window.innerHeight * 2)")
+            except Exception:
+                # Page navigated mid-scroll (Meta redirect/refresh) — wait and continue
+                await page.wait_for_timeout(2000)
+                continue
             await page.wait_for_timeout(2500)
             if len(collected) >= max_ads:
                 break
