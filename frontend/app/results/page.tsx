@@ -65,7 +65,7 @@ function AdCard({ ad }: { ad: Ad }) {
               ✕ Close
             </button>
             <video
-              src={`${API}${ad.video_url}`}
+              src={ad.video_url.startsWith('http') ? ad.video_url : `${API}${ad.video_url}`}
               className="max-h-[80vh] max-w-[90vw] rounded-lg"
               controls
               autoPlay
@@ -83,7 +83,7 @@ function AdCard({ ad }: { ad: Ad }) {
           {ad.video_url ? (
             <>
               <video
-                src={`${API}${ad.video_url}`}
+                src={ad.video_url.startsWith('http') ? ad.video_url : `${API}${ad.video_url}`}
                 className="w-full h-full object-cover"
                 controls={false}
                 muted
@@ -167,7 +167,8 @@ function AdCard({ ad }: { ad: Ad }) {
         </button>
         {ad.video_url && (
           <a
-            href={`${API}/api/download?path=${encodeURIComponent(ad.video_url)}`}
+            href={ad.video_url.startsWith('http') ? ad.video_url : `${API}/api/download?path=${encodeURIComponent(ad.video_url)}`}
+            target="_blank" rel="noopener noreferrer" download
             className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 font-medium transition-colors ml-auto"
           >
             <Download className="w-3.5 h-3.5" />
