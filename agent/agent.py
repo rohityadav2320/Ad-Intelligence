@@ -24,18 +24,31 @@ from supabase import create_client, Client
 
 load_dotenv()
 
-# Defaults are pre-filled — team members don't need to configure anything
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://qyjquitdgwigqaljudfg.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5anF1aXRkZ3dpZ3FhbGp1ZGZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5OTMwMDgsImV4cCI6MjA5ODU2OTAwOH0.56mUIDztE-XSgOEwHSi5Ez04_nDDSMkkHP4vgPVdEUY")
+# Only the backend URL needs to be known — it's a public URL, not a credential.
+# The agent bootstraps its Supabase config from the backend at startup, so the
+# distributed zip file (Mac/Windows) carries zero secrets.
 BACKEND_URL = os.getenv("BACKEND_URL", "https://ad-intelligence-bavo.onrender.com").rstrip("/")
 POLL_INTERVAL = 5  # seconds between job polls
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    print("❌ SUPABASE_URL and SUPABASE_KEY must be set in .env")
-    sys.exit(1)
-
 if not BACKEND_URL:
     print("❌ BACKEND_URL must be set in .env (e.g. https://your-app.onrender.com)")
+    sys.exit(1)
+
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("🔧 Fetching config from backend...")
+    try:
+        cfg = requests.get(f"{BACKEND_URL}/api/agent-config", timeout=15).json()
+        SUPABASE_URL = cfg.get("supabase_url", "")
+        SUPABASE_KEY = cfg.get("supabase_key", "")
+    except Exception as e:
+        print(f"❌ Could not fetch config from backend: {e}")
+        sys.exit(1)
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("❌ Backend did not return valid Supabase config. Is it deployed correctly?")
     sys.exit(1)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)

@@ -42,6 +42,21 @@ app.add_middleware(
 # No local video storage or static file serving needed on this backend.
 
 
+@app.get("/api/agent-config")
+def agent_config():
+    """
+    Public config endpoint for the downloadable scraping agent.
+    Returns the Supabase anon key (safe to expose — same key already shipped
+    in the frontend's public JS bundle, access is enforced by Supabase RLS).
+    This lets us distribute the agent as a plain zip with zero secrets baked in —
+    it only needs to know this backend's URL to bootstrap itself.
+    """
+    return {
+        "supabase_url": os.getenv("SUPABASE_URL", ""),
+        "supabase_key": os.getenv("SUPABASE_KEY", ""),
+    }
+
+
 # ── Request/Response Models ───────────────────────────────────────────────────
 
 class AnalyzeRequest(BaseModel):
