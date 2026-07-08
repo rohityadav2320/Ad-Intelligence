@@ -11,16 +11,19 @@ An **Ad Intelligence portal** for Vidrow (a creative ad agency). It scrapes comp
 
 It also pulls **Instagram Reels** as inspiration and writes scripts from them.
 
-## Architecture
+## Architecture (Hybrid)
 
 ```
-Frontend (Next.js 15, App Router, TypeScript)  →  Backend (FastAPI, Python 3.9)  →  Supabase (Postgres)
-        Vercel (planned)                              Railway/Render (planned)          shared project qyjquitdgwigqaljudfg
+agent/ (team laptop)  →  Supabase  ←→  Backend (Render, free)  ←  Frontend (Vercel, free)
+  Playwright scraping     Postgres       transcription + AI          Next.js 15
+  yt-dlp Instagram        scrape_jobs    script generation
+  home IP (never blocked) queue table
 ```
 
-- **Frontend** talks to the backend via `NEXT_PUBLIC_API_URL`.
-- **Backend** is a FastAPI app that also spawns long-running background jobs and serves downloaded videos as static files.
-- **Database** is Supabase Postgres. NOTE: this Supabase project (`qyjquitdgwigqaljudfg`) is **shared with the Vidrow Portal** — different tables, same database.
+- **Agent** (`agent/agent.py`) runs on a team laptop. Polls `scrape_jobs` table. Scrapes Meta + Instagram on home IP — never blocked. Calls backend to transcribe + analyze each ad.
+- **Backend** (Render free) is lightweight FastAPI — no Playwright, no yt-dlp. Only: transcription (ElevenLabs), AI analysis (Claude), script generation, data reads/writes.
+- **Frontend** (Vercel free) talks to backend via `NEXT_PUBLIC_API_URL`. Videos play directly from Meta/Instagram CDN URLs — no video storage needed.
+- **Database**: Supabase Postgres, shared with Vidrow Portal (`qyjquitdgwigqaljudfg`).
 
 ## Running locally
 

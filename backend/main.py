@@ -1,16 +1,17 @@
 """
 FastAPI backend for Ad Intelligence Tool.
+
+In the hybrid architecture:
+- This backend handles: transcription, AI analysis, script generation, all data reads/writes
+- The local agent (agent/agent.py) handles: Meta scraping, Instagram downloads
+- Scrape jobs are queued in Supabase (scrape_jobs table) for the agent to pick up
 """
 
 import os
-import sys
-import signal
-import subprocess
 from typing import Optional
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -24,26 +25,7 @@ from database import (
 
 load_dotenv()
 
-BACKEND_DIR = Path(__file__).parent.resolve()
-
-# Track running pipeline subprocesses so they can be cancelled
-RUNNING_JOBS: dict = {}
-
-
-def launch_job(session_id: str, args: list):
-    """Start a pipeline subprocess in its own process group (so it can be killed cleanly)."""
-    log_path = BACKEND_DIR.parent / "videos" / f"job_{session_id}.log"
-    logf = open(log_path, "w")
-    proc = subprocess.Popen(
-        [sys.executable, str(BACKEND_DIR / "run_job.py"), *args],
-        cwd=str(BACKEND_DIR),
-        stdout=logf,
-        stderr=subprocess.STDOUT,
-        start_new_session=True,  # own process group → kill children (browser) too
-    )
-    RUNNING_JOBS[session_id] = proc.pid
-
-app = FastAPI(title="Ad Intelligence API", version="1.0.0")
+app = FastAPI(title="Ad Intelligence API", version="2.0.0")
 
 _default_origins = "http://localhost:3000,http://localhost:3001,http://localhost:3002"
 _allowed_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()]
@@ -56,29 +38,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve downloaded videos as static files (for inline preview/play)
-VIDEO_DIR = Path(os.getenv("VIDEO_STORAGE_PATH", "../videos")).resolve()
-VIDEO_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/videos", StaticFiles(directory=str(VIDEO_DIR)), name="videos")
-
-
-@app.get("/api/download")
-def download_video_file(path: str):
-    """
-    Force-download a video file (sends Content-Disposition: attachment).
-    `path` is the stored video_url, e.g. /videos/oolka/123.mp4
-    """
-    from fastapi.responses import FileResponse
-    rel = path.replace("/videos/", "", 1).lstrip("/")
-    file_path = (VIDEO_DIR / rel).resolve()
-    # Path-traversal safety: must stay inside VIDEO_DIR
-    if not str(file_path).startswith(str(VIDEO_DIR)) or not file_path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(
-        str(file_path),
-        media_type="application/octet-stream",
-        filename=file_path.name,  # sets Content-Disposition: attachment
-    )
+# Videos are served directly from Meta/Instagram CDN URLs stored in Supabase.
+# No local video storage or static file serving needed on this backend.
 
 
 # ── Request/Response Models ───────────────────────────────────────────────────
@@ -120,9 +81,9 @@ def root():
 @app.post("/api/analyze", response_model=AnalyzeResponse)
 async def start_analysis(request: AnalyzeRequest):
     """
-    Start a full pipeline analysis for a brand.
-    Launches the pipeline as an isolated subprocess (avoids Playwright/event-loop
-    conflicts with the web server). Poll /api/sessions/{session_id} for status.
+    Queue a Meta Ad Library scrape for the local agent.
+    Creates a research session (for progress tracking) + a scrape_job (for the agent).
+    Poll /api/sessions/{session_id} for status — the agent updates it when done.
     """
     brand_name = request.brand_name.strip()
     if not brand_name:
@@ -131,29 +92,134 @@ async def start_analysis(request: AnalyzeRequest):
     session = create_session(brand_name, client_id=request.client_id)
     session_id = session["id"]
 
-    launch_job(session_id, [
-        brand_name, session_id, str(request.max_ads),
-        request.client_id or "-", request.role,
-    ])
+    # Create job for the agent to pick up
+    supabase.table("scrape_jobs").insert({
+        "type": "meta",
+        "status": "queued",
+        "params": {
+            "brand_name": brand_name,
+            "max_ads": request.max_ads,
+            "client_id": request.client_id,
+            "role": request.role,
+            "session_id": session_id,
+        }
+    }).execute()
 
     return AnalyzeResponse(
         session_id=session_id,
-        message=f"Analysis started for '{brand_name}'. Poll /api/sessions/{session_id} for status."
+        message=f"Scrape job queued for '{brand_name}'. Agent will process it. Poll /api/sessions/{session_id} for status."
     )
 
 
 @app.post("/api/analyze-url", response_model=AnalyzeResponse)
 async def analyze_single_url(request: AnalyzeUrlRequest):
-    """Analyze ONE specific ad by its Meta Ad Library link."""
+    """Queue a single Meta Ad Library URL for scraping by the agent."""
     ad_url = request.ad_url.strip()
     if not ad_url:
         raise HTTPException(status_code=400, detail="ad_url is required")
 
-    session = create_session(f"[link] {ad_url}")  # keep full URL so we can extract the ad id
+    session = create_session(f"[link] {ad_url}")
     session_id = session["id"]
 
-    launch_job(session_id, ["--single", ad_url, session_id, request.client_id or "-", request.role])
-    return AnalyzeResponse(session_id=session_id, message="Analyzing single ad...")
+    supabase.table("scrape_jobs").insert({
+        "type": "meta",
+        "status": "queued",
+        "params": {
+            "brand_name": ad_url,
+            "max_ads": 1,
+            "client_id": request.client_id,
+            "role": request.role,
+            "session_id": session_id,
+        }
+    }).execute()
+
+    return AnalyzeResponse(session_id=session_id, message="Single ad scrape queued for agent.")
+
+
+# ── Job queue routes (for agent + frontend polling) ───────────────────────────
+
+@app.post("/api/jobs")
+def create_job(body: dict):
+    """Create a scrape job for the local agent to pick up."""
+    job_type = body.get("type")
+    params = body.get("params", {})
+    if job_type not in ("meta", "instagram"):
+        raise HTTPException(status_code=400, detail="type must be 'meta' or 'instagram'")
+    row = supabase.table("scrape_jobs").insert({
+        "type": job_type,
+        "params": params,
+        "status": "queued"
+    }).execute()
+    return row.data[0]
+
+
+@app.get("/api/jobs/{job_id}")
+def get_job(job_id: str):
+    """Get status of a scrape job (frontend polls this to know when agent is done)."""
+    result = supabase.table("scrape_jobs").select("*").eq("id", job_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return result.data[0]
+
+
+# ── Transcription + Analysis (called by agent after saving ads) ───────────────
+
+@app.post("/api/transcribe/{ad_id}")
+def transcribe_ad(ad_id: str):
+    """
+    Download ad video from its CDN URL and transcribe with ElevenLabs.
+    Called by the agent after saving ads to Supabase.
+    Also available for manual re-transcription from the frontend.
+    """
+    from transcriber import transcribe_from_url
+    from database import save_transcript, delete_transcript_and_analysis
+
+    ad = supabase.table("ads").select("video_url").eq("id", ad_id).execute().data
+    if not ad:
+        raise HTTPException(status_code=404, detail="Ad not found")
+
+    video_url = ad[0].get("video_url", "")
+    if not video_url or video_url.startswith("/videos/"):
+        raise HTTPException(status_code=400, detail="No valid CDN video URL for this ad")
+
+    delete_transcript_and_analysis(ad_id)
+    transcript_data = transcribe_from_url(video_url, ad_id)
+    save_transcript(ad_id, transcript_data)
+
+    return {"status": "done", "chars": len(transcript_data.get("full_text", ""))}
+
+
+@app.post("/api/analyze/{ad_id}")
+def analyze_ad(ad_id: str):
+    """
+    Run Claude analysis on a transcribed ad.
+    Called by the agent after transcription, or manually from the frontend.
+    """
+    from analyzer import analyze_transcript
+    from database import save_analysis
+
+    row = supabase.table("ads").select(
+        "days_running, brands(name), transcripts(full_text, hook_text)"
+    ).eq("id", ad_id).execute().data
+    if not row:
+        raise HTTPException(status_code=404, detail="Ad not found")
+    ad = row[0]
+
+    transcript = (ad.get("transcripts") or {}).get("full_text", "")
+    hook = (ad.get("transcripts") or {}).get("hook_text", "")
+    brand_name = (ad.get("brands") or {}).get("name", "")
+
+    if not transcript:
+        raise HTTPException(status_code=400, detail="No transcript — transcribe the ad first")
+
+    analysis = analyze_transcript(
+        transcript=transcript,
+        hook_text=hook,
+        brand_name=brand_name,
+        days_running=ad.get("days_running", 0)
+    )
+    save_analysis(ad_id, analysis)
+    return {"status": "done", "analysis": analysis}
 
 
 # ── Client workspace routes ───────────────────────────────────────────────────
@@ -418,25 +484,18 @@ def get_session(session_id: str):
 
 @app.post("/api/sessions/{session_id}/cancel")
 def cancel_session(session_id: str):
-    """Stop a running analysis and mark it cancelled."""
-    pid = RUNNING_JOBS.get(session_id)
-    killed = False
-    if pid:
-        try:
-            os.killpg(os.getpgid(pid), signal.SIGTERM)  # kill process group (browser too)
-            killed = True
-        except ProcessLookupError:
-            pass
-        RUNNING_JOBS.pop(session_id, None)
-
-    # Fallback: kill any run_job process still carrying this session id
-    if not killed:
-        subprocess.run(["pkill", "-f", session_id], check=False)
-
+    """Mark a session as cancelled (agent will stop processing if it sees this)."""
     supabase.table("research_sessions").update({
         "status": "failed",
         "error_message": "Cancelled by user",
     }).eq("id", session_id).execute()
+
+    # Also cancel any queued/running job for this session
+    supabase.table("scrape_jobs").update({
+        "status": "error",
+        "error_message": "Cancelled by user",
+    }).contains("params", {"session_id": session_id}).execute()
+
     return {"status": "cancelled"}
 
 
@@ -640,34 +699,71 @@ class InstaDownloadRequest(BaseModel):
 
 @app.post("/api/instagram/download")
 async def instagram_download(request: InstaDownloadRequest):
-    """Download an Instagram Reel, transcribe it, save to inspiration_reels table."""
-    from instagram import download_reel, is_instagram_url
-    from transcriber import transcribe_video
-
+    """
+    Queue an Instagram Reel download job for the local agent.
+    The agent downloads the reel on the team member's laptop (home IP + Chrome session)
+    and calls /api/instagram/transcribe when the file is ready.
+    Frontend polls /api/jobs/{job_id} for completion.
+    """
     url = request.url.strip()
-    if not is_instagram_url(url):
-        raise HTTPException(status_code=400, detail="Not a valid Instagram Reel URL")
+    if "instagram.com" not in url:
+        raise HTTPException(status_code=400, detail="Not a valid Instagram URL")
 
-    # Check if already downloaded for this client
+    # Check if already exists for this client
     existing = supabase.table("inspiration_reels").select("*").eq(
         "client_id", request.client_id
     ).eq("reel_url", url).execute().data
     if existing:
+        return {"status": "exists", "reel": existing[0], "job_id": None}
+
+    # Queue for the agent
+    job = supabase.table("scrape_jobs").insert({
+        "type": "instagram",
+        "status": "queued",
+        "params": {"reel_url": url, "client_id": request.client_id}
+    }).execute().data[0]
+
+    return {"status": "queued", "job_id": job["id"], "reel": None}
+
+
+@app.post("/api/instagram/transcribe")
+async def instagram_transcribe(
+    reel_url: str = Form(...),
+    client_id: str = Form(...),
+    file: UploadFile = File(...)
+):
+    """
+    Called by the local agent after downloading an Instagram Reel.
+    Receives the video file, transcribes it, saves reel + transcript to Supabase.
+    """
+    from transcriber import transcribe_video
+
+    # Check if already exists
+    existing = supabase.table("inspiration_reels").select("*").eq(
+        "client_id", client_id
+    ).eq("reel_url", reel_url).execute().data
+    if existing:
         return existing[0]
 
-    # Download
-    dl = download_reel(url)
-    if not dl["success"]:
-        raise HTTPException(status_code=400, detail=dl["error"])
+    # Save to temp file and transcribe
+    tmp_path = f"/tmp/reel_{client_id[:8]}_{file.filename}"
+    try:
+        content = await file.read()
+        with open(tmp_path, "wb") as f:
+            f.write(content)
 
-    # Transcribe
-    transcript_data = transcribe_video(dl["local_path"])
+        transcript_data = transcribe_video(tmp_path)
+    finally:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
 
-    # Save to DB
+    # Save to DB — use original Instagram URL for video_url (browser can embed it)
     row = supabase.table("inspiration_reels").insert({
-        "client_id": request.client_id,
-        "reel_url": url,
-        "video_url": dl["serve_url"],
+        "client_id": client_id,
+        "reel_url": reel_url,
+        "video_url": reel_url,
         "transcript": transcript_data.get("full_text", ""),
         "hook_text": transcript_data.get("hook_text", ""),
     }).execute().data[0]

@@ -5,6 +5,13 @@ backend/*.pyc
 backend/*.pyo
 backend/.env
 
+# Agent
+agent/venv/
+agent/__pycache__/
+agent/*.pyc
+agent/.env
+agent/*.log
+
 # Videos (local storage - too large for git)
 videos/
 

@@ -13,6 +13,39 @@ load_dotenv()
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 
 
+def transcribe_from_url(video_url: str, ad_id: str) -> dict:
+    """
+    Download a video from a URL (Meta CDN or Supabase Storage) to /tmp/,
+    transcribe it, then delete the temp file.
+    Called by the backend when the agent requests transcription for an ad.
+    """
+    import requests as req
+
+    if not video_url:
+        print("[Transcriber] No video URL provided")
+        return _empty()
+
+    tmp_path = f"/tmp/ad_{ad_id[:8]}.mp4"
+    try:
+        print(f"[Transcriber] Downloading from CDN...")
+        r = req.get(video_url, timeout=60, stream=True)
+        r.raise_for_status()
+        with open(tmp_path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
+        size_kb = Path(tmp_path).stat().st_size // 1024
+        print(f"[Transcriber] Downloaded {size_kb}KB, transcribing...")
+        return transcribe_video(tmp_path)
+    except Exception as e:
+        print(f"[Transcriber] Error downloading from URL: {e}")
+        return _empty()
+    finally:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+
+
 def transcribe_video(video_path: str) -> dict:
     if not video_path or not Path(video_path).exists():
         print(f"[Transcriber] Video not found: {video_path}")
